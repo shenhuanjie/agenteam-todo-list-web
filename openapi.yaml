@@ -1,0 +1,300 @@
+openapi: 3.0.3
+info:
+  title: TODO API
+  description: |
+    TODO Web 应用后端 API
+    
+    ## 技术栈
+    - **框架**: Python + FastAPI
+    - **数据库**: SQLite (SQLAlchemy ORM)
+    - **迁移工具**: Alembic
+    
+    ## 认证方案
+    使用 HMAC-SHA256 预共享密钥签名，防伪造。
+    
+    **Token 计算方式：**
+    ```
+    X-User-Token = HMAC-SHA256(X-User-ID, server_secret).hexdigest()
+    ```
+    
+    **请求 Header：**
+    ```
+    X-User-ID: <user_uuid>
+    X-User-Token: <hmac_hexdigest>
+    ```
+    
+    **示例（Python）：**
+    ```python
+    import hmac, hashlib
+    user_id = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    secret  = "dev-secret-change-in-production"
+    token = hmac.new(secret.encode(), user_id.encode(), hashlib.sha256).hexdigest()
+    # 发送请求时带上 X-User-ID 和 X-User-Token 两个 header
+    ```
+    
+    ## 数据隔离
+    - 用户身份：HMAC 签名验证（防伪造）
+    - UUID v4 ID（防枚举）
+    - 跨用户访问返回 404（防信息探测）
+    
+    ## 约束
+    - `title` 字段必填，长度 1-200 字符
+    - `description` 可选，长度最多 2000 字符
+    - `completed` 默认为 `false`
+    - 所有时间字段使用 UTC，ISO 8601 格式
+  version: 1.0.0
+  contact:
+    name: backend-dev
+
+servers:
+  - url: http://localhost:8000
+    description: 开发环境
+
+paths:
+  /api/todos:
+    get:
+      operationId: get_todos
+      summary: 获取当前用户的所有 TODO
+      tags:
+        - TODO
+      parameters:
+        - name: completed
+          in: query
+          description: 按完成状态过滤（可选）
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: 成功返回 TODO 列表（仅当前用户）
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TODO"
+                  total:
+                    type: integer
+                    description: 总数量
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: create_todo
+      summary: 创建 TODO（自动归属当前用户）
+      tags:
+        - TODO
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TODOCreate"
+      responses:
+        "201":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TODO"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+  /api/todos/{id}:
+    get:
+      operationId: get_todo
+      summary: 获取单个 TODO（仅所有者可访问）
+      tags:
+        - TODO
+      parameters:
+        - $ref: "#/components/parameters/TodoId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TODO"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      operationId: update_todo
+      summary: 更新 TODO（仅所有者可操作）
+      tags:
+        - TODO
+      parameters:
+        - $ref: "#/components/parameters/TodoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TODOUpdate"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/TODO"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+    delete:
+      operationId: delete_todo
+      summary: 删除 TODO（仅所有者可操作）
+      tags:
+        - TODO
+      parameters:
+        - $ref: "#/components/parameters/TodoId"
+      responses:
+        "204":
+          description: 删除成功，无返回内容
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  parameters:
+    TodoId:
+      name: id
+      in: path
+      required: true
+      description: TODO UUID
+      schema:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+  schemas:
+    TODO:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - completed
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID v4（防枚举）
+          readOnly: true
+        user_id:
+          type: string
+          description: 所属用户 ID（UUID）
+          readOnly: true
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: TODO 标题（必填）
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        completed:
+          type: boolean
+          default: false
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+
+    TODOCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    TODOUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        completed:
+          type: boolean
+
+    Error:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: 未提供 X-User-ID / X-User-Token，或签名验证失败
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            detail: "Invalid X-User-Token"
+
+    NotFound:
+      description: 资源不存在（跨用户访问也返回此状态码，防止枚举探测）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            detail: "TODO not found"
+
+    UnprocessableEntity:
+      description: 请求参数校验失败
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
