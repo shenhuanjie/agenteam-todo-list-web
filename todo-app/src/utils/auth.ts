@@ -1,5 +1,5 @@
 const USER_ID_KEY = 'todo_user_id';
-const HMAC_SECRET = 'test-secret'; // 后端 HMAC_SECRET 环境变量
+const HMAC_SECRET = 'dev-secret'; // 后端 HMAC_SECRET 环境变量
 
 /** 获取或生成匿名用户 ID */
 export function getUserId(): string {
