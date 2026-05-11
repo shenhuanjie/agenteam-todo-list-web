@@ -22,7 +22,7 @@ env:
 
   # ========== 项目路径 ==========
   FRONTEND_DIR: todo-app
-  BACKEND_DIR: projects/todo-api
+  BACKEND_DIR: todo-app
 
   # ========== 后端配置 ==========
   # 注意: HMAC_SECRET 通过 GitHub Secret 注入，dev 环境需在 repo Settings -> Secrets 设置
@@ -244,8 +244,7 @@ jobs:
       - name: Install dependencies
         working-directory: ${{ env.BACKEND_DIR }}
         run: |
-          pip install --break-system-packages -r requirements.txt
-          pip install --break-system-packages -r requirements-dev.txt 2>/dev/null || true
+          pip install --break-system-packages -r api/requirements.txt
           pip install --break-system-packages pytest pytest-cov httpx pytest-asyncio
 
       # --- Python Lint (flake8) ---
@@ -253,12 +252,12 @@ jobs:
         working-directory: ${{ env.BACKEND_DIR }}
         run: |
           pip install --break-system-packages flake8 black isort 2>/dev/null || true
-          flake8 app --max-line-length=120 --extend-ignore=E203,W503 || true
+          flake8 api --max-line-length=120 --extend-ignore=E203,W503 || true
 
       # --- Pytest 测试 ---
       - name: Run pytest
         working-directory: ${{ env.BACKEND_DIR }}
-        run: pytest --cov=app --cov-report=xml --cov-report=term || true
+        run: pytest --cov=api --cov-report=xml --cov-report=term || true
 
       # --- 上传覆盖率报告 ---
       - name: Upload backend coverage
@@ -293,7 +292,7 @@ jobs:
         run: |
           # HMAC_SECRET: dev-secret for local dev, set via GitHub Secret for CI
           export HMAC_SECRET="${BACKEND_HMAC_SECRET:-dev-secret}"
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          uvicorn api.index:app --host 0.0.0.0 --port 8000 &
           sleep 5
 
       - name: Verify health endpoint response
@@ -334,13 +333,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-          cache-dependency-path: '${{ env.BACKEND_DIR }}/requirements.txt'
+          cache-dependency-path: '${{ env.BACKEND_DIR }}/api/requirements.txt'
 
       - name: Install dependencies
         working-directory: ${{ env.BACKEND_DIR }}
         run: |
-          pip install --break-system-packages -r requirements.txt
-          pip install --break-system-packages -r requirements-dev.txt 2>/dev/null || true
+          pip install --break-system-packages -r api/requirements.txt
 
       - name: Run pytest (final validation)
         working-directory: ${{ env.BACKEND_DIR }}
@@ -351,8 +349,8 @@ jobs:
         with:
           name: backend-artifacts
           path: |
-            ${{ env.BACKEND_DIR }}/app/
-            ${{ env.BACKEND_DIR }}/requirements.txt
+            ${{ env.BACKEND_DIR }}/api/
+            ${{ env.BACKEND_DIR }}/api/requirements.txt
           retention-days: 5
 
   # ============================================================
